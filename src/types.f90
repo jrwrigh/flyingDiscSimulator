@@ -35,4 +35,10 @@ module types
     type(disc_props) :: disc
   end type problemData
 
+  type :: solver_settings
+    real*8 :: rho_infty
+    real*8 :: delta_t
+    real*8 :: tolerance
+  end type solver_settings
+
 end module types
