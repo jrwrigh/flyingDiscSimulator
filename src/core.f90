@@ -1,18 +1,24 @@
 module core
   implicit none
 
-  private :: T_a12_IndvAngles, T_a12_ArrayAngles
+  private :: T_a12_IndvAngles, T_a12_ArrayAngles, &
+             T_r12_IndvAngles, T_r12_ArrayAngles
 
   interface T_a12
     module procedure T_a12_IndvAngles
     module procedure T_a12_ArrayAngles
   end interface T_a12
 
+  interface T_r12
+    module procedure T_r12_IndvAngles
+    module procedure T_r12_ArrayAngles
+  end interface T_r12
+
   contains
     subroutine tester(input)
       use types
       type(disc_status), intent(in) :: input
-      print *, input%phi
+      print *, input%theta
     end subroutine tester
 
     function test() result(j)
@@ -99,8 +105,40 @@ module core
 
     end function T_a34
 
+    pure function T_r12_IndvAngles(phi, theta, psi) result(T_r)
+      real*8 :: T_r(3,3)
+      real*8, intent(in) :: phi, theta, psi
+      real*8 :: cosphi, costheta, cospsi, &
+                sinphi, sintheta, sinpsi
+      cosphi = cos(phi)
+      costheta = cos(theta)
+      cospsi = cos(psi)
+      sinphi = sin(phi)
+      sintheta = sin(theta)
+      sinpsi = sin(psi)
 
+      T_r(1,:) = (/ 1d0,     0d0,        -sintheta /)
+      T_r(2,:) = (/ 0d0,  cosphi,  costheta*sinpsi /)
+      T_r(3,:) = (/ 0d0, -sinphi,  costheta*cospsi /)
 
+    end function T_r12_IndvAngles
 
+    pure function T_r12_ArrayAngles(angles) result(T_r)
+      real*8 :: T_r(3,3)
+      real*8, intent(in) :: angles(3)
+      real*8 :: cosphi, costheta, cospsi, &
+                sinphi, sintheta, sinpsi
+      cosphi = cos(angles(1))
+      costheta = cos(angles(2))
+      cospsi = cos(angles(3))
+      sinphi = sin(angles(1))
+      sintheta = sin(angles(2))
+      sinpsi = sin(angles(3))
+
+      T_r(1,:) = (/ 1d0,     0d0,        -sintheta /)
+      T_r(2,:) = (/ 0d0,  cosphi,  costheta*sinpsi /)
+      T_r(3,:) = (/ 0d0, -sinphi,  costheta*cospsi /)
+
+    end function T_r12_ArrayAngles
 
 end module core

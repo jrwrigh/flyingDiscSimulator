@@ -7,7 +7,7 @@ module types
     sequence
 
     real*8 :: loc(3)   !<Disc physical location
-    real*8 :: phi(3)   !<Disc attitude
+    real*8 :: theta(3)   !<Disc attitude
     real*8 :: vel(3)   !<Disc velocity
     real*8 :: omega(3) !<Disc angular velocity
 
