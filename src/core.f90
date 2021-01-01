@@ -1,4 +1,4 @@
-module core
+module transformation
   implicit none
 
   private :: T_a12_IndvAngles, T_a12_ArrayAngles, &
@@ -141,4 +141,4 @@ module core
 
     end function T_r12_ArrayAngles
 
-end module core
+end module transformation
