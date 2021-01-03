@@ -3,41 +3,59 @@ program flyingDiscSimulator
 use transformation
 use types
 use aero
+use time_integrator
+use math, only: pi
 implicit none
 
 ! type(disc_status) :: disc
 type(problemData) :: problem
-type(solution_state) :: solution
+type(solution_state) :: soln, solnp1
+integer, parameter :: nsteps=9
+type(solution_state) :: solution(nsteps)
+type(solver_settings) :: solver
+real*8, dimension(6) :: A
+real*8 :: Imat(3,3)
+integer :: k, j
 
-! disc%theta(:) = (/ 1.1D0, 1.2D0, 1.3D0 /)
-
-! call tester(disc)
-
-! print *, 'it works'
-
-! print *, T_a12(0D0, 0D0, 0D0)
-! print *, T_a12(disc%theta)
-! print *, T_a23(0D0)
-! print *, T_a34(0D0)
-
-! call calcuation()
-!
 ! Initializing problem data
-problem%disc%I = (/ 0.1D0, 0.1D0, 0.2D0 /)
-problem%disc%m = 200
-problem%disc%A = 1D-5
-problem%disc%D = 0.2D0
+problem%disc%I = (/ 1.2d-3, 1.2d-3, 2.4d-3 /)
+problem%disc%m = 0.175d0
+problem%disc%D = 0.275d0
+problem%disc%A = pi*(problem%disc%D*0.5)**2
 
-problem%env%wind = (/ 0d0, 1d0, 0d0 /)
+problem%env%wind = (/ 0d0, 0d0, 0d0 /)
 problem%env%density = 1.223d0
 problem%env%gravity = (/ 0d0, 0d0, 9.81d0 /)
 problem%env%viscosity = 1.5d-5
 
-solution%Y(:) = (/ 0d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
-solution%U(:) = (/ 0d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
-solution%Udot(:) = (/ 0d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
+soln%Y(:) = (/ 0d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
+soln%U(:) = (/ 20d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
+soln%Udot(:) = (/ 0d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
 
-call calcA(solution, problem)
+solution(1) = soln
+
+solver%rho_infty = 0.5
+solver%nsteps = 3
+solver%delta_t = 1d-4
+solver%tolerance = 1d-16
+
+call calc_alphas_gamma(solver)
+
+! call predictor_UdotConstant(soln, solnp1, solver)
+! call iterate(soln, solnp1, solver, problem)
+
+print *, 'STEP: ', 1
+call predictor_UdotConstant(solution(1), solution(2), solver)
+call iterate(solution(1), solution(2), solver, problem)
+do k=2,nsteps-1
+  print *, 'STEP: ', k
+  call predictor_deltaUConstant(solution(k), solution(k-1), solution(k+1), solver)
+  call iterate(solution(k), solution(k+1), solver, problem)
+end do
+
+! Imat = 0
+! forall(j=1:3) Imat(j,j) = problem%disc%I(j)
+! print *, Imat
 
 contains
   ! subroutine calcuation()
