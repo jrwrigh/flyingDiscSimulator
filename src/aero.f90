@@ -15,9 +15,10 @@ module aero
       real*8, intent(out), dimension(3) :: Cf, Cm !< Vector of force and moment coefficients
       real*8, intent(in) :: alpha3 !< Angle of Attack
 
-      Cf(1) = -0.1*alpha3**2 ! drag
+      Cf(1) = -(0.1*alpha3**2 + 0.1d0) ! drag
       Cf(2) = 0d0  ! side
-      Cf(3) = -3.1*alpha3**2 ! lift
+      Cf(3) = -(3.1*alpha3**2 + 0.1d0) ! lift
+      ! Cf(3) = Cf(3)*100
 
       ! Cm(1) = -0.1*alpha3 ! rolling moment
       ! Cm(2) = -0.1*alpha3 ! pitching moment
@@ -56,21 +57,25 @@ module aero
       real*8, dimension(3) :: F4, M4, F2, M2
       real*8, dimension(3,3) :: Ta12, Ta23, Ta34, Ta42, Tr12
       real*8, dimension(3,3) :: F_factor, M_factor
+      real*8, dimension(3,6) :: J_Cm, J_Cf
       real*8 :: beta2, alpha3
       real*8 :: wind2(3), wind3(3)
       real*8 :: vel2(3), vel3(3)
       real*8 :: omega2(3)
-      integer :: j
+      real*8 :: temp(3,6)
+      integer :: i, j
 
       Ta12 = T_a12(Y(4:6))
       wind2 = transpose(Ta12).matmul.problem%env%wind
       vel2 = transpose(Ta12).matmul.U(1:3)
-      beta2 = ATAN( (vel2(2) - wind2(2)) / (vel2(1) - wind2(1)) )
+      beta2 = ATAN2( (vel2(2) - wind2(2)), (vel2(1) - wind2(1)) )
+      ! beta2 = ATAN( (vel2(2) - wind2(2)) / (vel2(1) - wind2(1)) )
 
       Ta23 = T_a23(beta2)
       wind3 = transpose(Ta23).matmul.wind2
       vel3 = transpose(Ta23).matmul.vel2
-      alpha3 = ATAN( (vel3(2) - wind3(2)) / (vel3(1) - wind3(1)) )
+      alpha3 = ATAN2( (vel3(3) - wind3(3)), (vel3(1) - wind3(1)) )
+      ! alpha3 = ATAN( (vel3(2) - wind3(2)) / (vel3(1) - wind3(1)) )
 
       Ta34 = T_a34(alpha3)
 
@@ -92,12 +97,26 @@ module aero
       F_factor = F_factor/problem%disc%m
       M_factor = M_factor*problem%disc%D
 
-      dAdU = 0
-      forall(j=1:3) dAdU(j,j) = 2*U(j)*Cf(j)
-      forall(j=1:3) dAdU(j+3,j+3) = 2*U(j)*Cm(j)*Iinv(j)
+      call calcCfJacobian(Ta23, problem, U, J_Cf)
+      call calcCmJacobian(Ta23, problem, U, Cm, J_Cm)
 
-      dAdU(1:3,1:3) = F_factor.matmul.dAdU(1:3,1:3)
-      dAdU(4:6,4:6) = F_factor.matmul.dAdU(4:6,4:6)
+      associate(Fkj => J_Cf, Mkj => J_Cm, velocity => beta2)
+        velocity = norm2(U(1:3))
+        Fkj = Fkj*velocity**2
+        Mkj = Mkj*velocity**2
+
+        forall(i=1:3, j=1:3) Fkj(i,j) = Fkj(i,j) + 2*Cf(i)*U(j)
+        forall(i=1:3, j=1:3) Mkj(i,j) = Mkj(i,j) + 2*Cm(i)*U(j)
+
+        dAdU(1:3,:) = F_factor.matmul.Fkj
+        dAdU(4:6,:) = M_factor.matmul.Mkj
+
+        !!!!!!!!!!
+        !DEBUGGGG
+        !!!!!!!!!!
+        dAdU = 0
+        A = (/-500, 0, 500, 0, 0, 0/)
+      end associate
 
     end subroutine
 
@@ -114,6 +133,34 @@ module aero
 
       call calcA_YU(Y, U, problem, A, dAdU)
 
+    end subroutine
+
+    pure subroutine calcCmJacobian(Ta23, problem, U, Cm, J_Cm)
+      use math
+      use types, only: problemData
+      real*8, intent(in) :: Ta23(3,3), U(6), Cm(3)
+      type(problemData), intent(in) :: problem
+      real*8, intent (out) :: J_Cm(3,6)
+      real*8, dimension(3,3) :: Ta32
+      integer :: i
+      real*8 :: theta3(3), velocity
+
+      Ta32 = transpose(Ta23)
+      velocity = norm2(U(1:3))
+      theta3 = Ta32.matmul.U(4:6)
+
+      forall(i=1:3) J_Cm(i,1:3) = U(1:3)*Cm(i)*theta3(i)*problem%disc%D/velocity**3
+      forall(i=1:3) J_Cm(i,4:6) = 0.5d0*Ta32(i,:)*Cm(i)*problem%disc%D*velocity
+    end subroutine
+
+    pure subroutine calcCfJacobian(Ta23, problem, U, J_Cf)
+      use math
+      use types, only: problemData
+      real*8, intent(in) :: Ta23(3,3), U(6)
+      type(problemData), intent(in) :: problem
+      real*8, intent (out) :: J_Cf(3,6)
+
+      J_Cf = 0
     end subroutine
 
 end module aero

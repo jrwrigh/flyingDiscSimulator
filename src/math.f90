@@ -21,14 +21,14 @@ module math
 
     pure function matmatmul_operator(A, B) result(C)
       real*8, intent(in), dimension(:,:) :: A, B
-      real*8, dimension(size(A,2),size(B,1)) :: C
+      real*8, dimension(size(A,1),size(B,2)) :: C
 
       C = matmul(A,B)
     end function matmatmul_operator
 
     pure function matvecmul_operator(A, B) result(C)
       real*8, intent(in)  :: A(:,:), B(:)
-      real*8, dimension(size(A,2)) :: C
+      real*8, dimension(size(A,1)) :: C
 
       C = matmul(A,B)
     end function matvecmul_operator
@@ -36,6 +36,7 @@ module math
     pure function vecmatmul_operator(A, B) result(C)
       real*8, intent(in)  :: A(:), B(:,:)
       real*8, dimension(size(A)) :: C
+      !^^^^ Wrong shape
 
       C = matmul(A,B)
     end function vecmatmul_operator

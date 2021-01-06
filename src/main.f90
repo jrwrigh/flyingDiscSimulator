@@ -9,13 +9,24 @@ implicit none
 
 ! type(disc_status) :: disc
 type(problemData) :: problem
-type(solution_state) :: soln, solnp1
-integer, parameter :: nsteps=9
-type(solution_state) :: solution(nsteps)
+! type(solution_state) :: soln, solnp1
+type(solution_state_ptr) :: soln_ptr, solnp1_ptr, solnm1_ptr
+integer, parameter :: nsteps=1e4
+! type(solution_state) :: solution(nsteps)
+real*8, allocatable, target :: solution(:,:)
 type(solver_settings) :: solver
 real*8, dimension(6) :: A
-real*8 :: Imat(3,3)
-integer :: k, j
+real*8 :: Imat(2,2), vec(2)
+integer :: k, j, outu
+
+vec = [ 1, 2 ]
+Imat(1,:) = [2, 3]
+Imat(2,:) = [4, 5]
+
+! print*, Imat*vec
+
+allocate(solution(18,nsteps))
+solution = 0
 
 ! Initializing problem data
 problem%disc%I = (/ 1.2d-3, 1.2d-3, 2.4d-3 /)
@@ -28,101 +39,50 @@ problem%env%density = 1.223d0
 problem%env%gravity = (/ 0d0, 0d0, 9.81d0 /)
 problem%env%viscosity = 1.5d-5
 
-soln%Y(:) = (/ 0d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
-soln%U(:) = (/ 20d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
-soln%Udot(:) = (/ 0d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
+! forall(j=1:18) solution(j,1) = j
 
-solution(1) = soln
+call soln_ptr%setptr(solution, 1)
+soln_ptr%Y(:) = (/ 0d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
+soln_ptr%U(:) = (/ 20d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
+soln_ptr%Udot(:) = (/ 0d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
+soln_ptr%Udot(1:3) = soln_ptr%Udot(1:3) + problem%env%gravity
 
-solver%rho_infty = 0.5
-solver%nsteps = 3
+solver%rho_infty = 1d0
+solver%niters = 5
 solver%delta_t = 1d-4
 solver%tolerance = 1d-16
 
-call calc_alphas_gamma(solver)
-
-! call predictor_UdotConstant(soln, solnp1, solver)
-! call iterate(soln, solnp1, solver, problem)
-
-print *, 'STEP: ', 1
-call predictor_UdotConstant(solution(1), solution(2), solver)
-call iterate(solution(1), solution(2), solver, problem)
-do k=2,nsteps-1
-  print *, 'STEP: ', k
-  call predictor_deltaUConstant(solution(k), solution(k-1), solution(k+1), solver)
-  call iterate(solution(k), solution(k+1), solver, problem)
-end do
-
-! Imat = 0
-! forall(j=1:3) Imat(j,j) = problem%disc%I(j)
-! print *, Imat
-
+call iterations()
 contains
-  ! subroutine calcuation()
-  !   use types
-  !   use transformation
-  !   use aero
-  !   use operator_matmul
 
-  !   real*8, dimension(3) :: Cf, Cm
-  !   real*8, dimension(3) :: F4, M4, F2, M2
-  !   real*8, dimension(3,3) :: Ta12, Ta23, Ta34, Ta42, Tr12
-  !   real*8, dimension(3,3) :: omega_tilde
-  !   real*8 :: beta2, alpha3
-  !   real*8 :: wind2(3), wind3(3)
-  !   real*8 :: vel2(3), vel3(3)
-  !   real*8 :: omega2(3)
-  !   type(problemData) :: problem
-  !   type(disc_status) :: state
+  ! subroutine iterations(solver, soln_ptr, solnp1_ptr, outu, solution)
+  subroutine iterations()
+    use types, only:solver_settings, solution_state_ptr
+    ! type(solver_settings), intent(inout) :: solver
+    ! type(solution_state_ptr), intent(in) :: soln_ptr, solnp1_ptr
+    ! integer, intent(inout) :: outu
+    ! real*8, intent(inout) :: solution(:,:)
 
-  !   real*8 :: results(2,3)
+    call solver%calc_alphas_gamma()
 
-  !   ! Initializing problem data
-  !   problem%disc%I = (/ 0.1D0, 0.1D0, 0.2D0 /)
-  !   problem%disc%m = 200
-  !   problem%disc%A = 1D-5
-  !   problem%disc%D = 0.2D0
+    ! print *, 'STEP: ', 1
+    call soln_ptr%setptr(solution, 1); call solnp1_ptr%setptr(solution, 2)
 
-  !   problem%env%wind = (/ 0d0, 1d0, 0d0 /)
-  !   problem%env%density = 1.223d0
-  !   problem%env%gravity = (/ 0d0, 0d0, 9.81d0 /)
-  !   problem%env%viscosity = 1.5d-5
+    call predictor_UdotConstant(soln_ptr, solnp1_ptr, solver)
+    call iterate(soln_ptr, solnp1_ptr, solver, problem)
+    do k=2,nsteps-1
+      ! print *, 'STEP: ', k
+      call soln_ptr%setptr(solution, k)
+      call solnm1_ptr%setptr(solution, k-1); call solnp1_ptr%setptr(solution, k+1)
 
-  !   ! Initialize state data
-  !   state%theta(:) = (/ 0d0, 0d0, 0d0 /)
-  !   state%loc(:) = (/ 0d0, 0d0, 0d0 /)
-  !   state%vel(:) = (/ 0d0, 0d0, 0d0 /)
-  !   state%omega(:) = (/ 0d0, 0d0, 0d0 /)
+      call predictor_deltaUConstant(soln_ptr, solnm1_ptr, solnp1_ptr, solver)
+      call iterate(soln_ptr, solnp1_ptr, solver, problem)
+    end do
 
-  !   Ta12 = T_a12(state%theta(:))
-  !   wind2 = transpose(Ta12).matmul.problem%env%wind
-  !   vel2 = transpose(Ta12).matmul.state%vel
-  !   beta2 = ATAN( (vel2(2) - wind2(2)) / (vel2(1) - wind2(1)) )
-
-  !   Ta23 = T_a23(beta2)
-  !   wind3 = transpose(Ta23).matmul.wind2
-  !   vel3 = transpose(Ta23).matmul.vel2
-  !   alpha3 = ATAN( (vel3(2) - wind2(2)) / (vel3(1) - wind2(1)) )
-
-  !   Ta34 = T_a34(alpha3)
-
-  !   call getAeroCoeffs(alpha3, Cf, Cm)
-  !   call calcAeroMomentForce(Cf, Cm, F4, M4, problem, state)
-
-  !   Ta42 = transpose(Ta23).matmul.transpose(Ta34)
-  !   F2 = Ta42.matmul.F4 + (transpose(Ta12).matmul.problem%env%gravity)*problem%disc%m
-  !   M2 = Ta42.matmul.M4.matmul.Ta42
-
-  !   Tr12 = T_r12(state%theta)
-  !   omega2 = transpose(Tr12).matmul.state%omega
-
-  !   results(1,:) = F2/problem%disc%m - omega2.cross.state%vel
-  !   results(2,:) = problem%disc%I**(-1)  * (M2 - omega2.cross.(problem%disc%I*omega2))
-
-
-    ! print *, vel2**(-1)
-    ! print *, shape(F4(2:3))
-    ! print *, 'it ran!'
-  ! end subroutine calcuation
+    outu = 0
+    open (unit=outu,form="unformatted",file="test.fbin",action="write")
+    write(outu) solution
+    close(outu)
+  end subroutine
 
 end program flyingDiscSimulator

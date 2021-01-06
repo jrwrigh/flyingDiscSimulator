@@ -22,12 +22,12 @@ module time_integrator
     end subroutine
 
     pure subroutine predictor_deltaUConstant(soln, solnm1, solnp1, solver)
-      use types, only: solver_settings, solution_state
+      use types, only: solver_settings, solution_state_ptr
       use transformation
       use math
-      type(solution_state), intent(in) :: soln, solnm1
+      type(solution_state_ptr), intent(in) :: soln, solnm1
       type(solver_settings), intent(in) :: solver
-      type(solution_state), intent(out) :: solnp1
+      type(solution_state_ptr), intent(out) :: solnp1
       real*8 :: Ty12(6,6)
 
       solnp1%U = soln%U + (soln%U - solnm1%U)
@@ -35,7 +35,7 @@ module time_integrator
                     + ((solver%gamma - 1)*soln%Udot)/solver%gamma
 
       Ty12 = 0d0
-      Ty12(1:3,1:3) = T_a12(soln%Y(1:3))
+      Ty12(1:3,1:3) = T_a12(soln%Y(4:6))
       Ty12(4:6,4:6) = transpose(T_r12(soln%Y(4:6)))
       solnp1%Y = soln%Y + (Ty12.matmul.soln%U)*solver%delta_t
       ! Old implementation without correct axis transformations
@@ -44,19 +44,19 @@ module time_integrator
     end subroutine
 
     pure subroutine predictor_UdotConstant(soln, solnp1, solver)
-      use types, only: solver_settings, solution_state
+      use types, only: solver_settings, solution_state_ptr
       use transformation
       use math
-      type(solution_state), intent(in) :: soln
+      type(solution_state_ptr), intent(in) :: soln
       type(solver_settings), intent(in) :: solver
-      type(solution_state), intent(out) :: solnp1
+      type(solution_state_ptr), intent(out) :: solnp1
       real*8 :: Ty12(6,6)
 
       solnp1%Udot = soln%Udot
       solnp1%U = soln%U + solver%delta_t*soln%Udot
 
       Ty12 = 0d0
-      Ty12(1:3,1:3) = T_a12(soln%Y(1:3))
+      Ty12(1:3,1:3) = T_a12(soln%Y(4:6))
       Ty12(4:6,4:6) = transpose(T_r12(soln%Y(4:6)))
       solnp1%Y = soln%Y + (Ty12.matmul.soln%U)*solver%delta_t
       ! Old implementation without correct axis transformation
@@ -65,13 +65,13 @@ module time_integrator
 
     subroutine iterate(soln, solnp1, solver, problem)
       use aero
-      use types, only: solver_settings, solution_state, problemData
+      use types, only: solver_settings, solution_state_ptr, problemData
       use transformation
       use math
-      type(solution_state), intent(inout) :: soln
+      type(solution_state_ptr), intent(inout) :: soln
       type(solver_settings), intent(in) :: solver
       type(problemData), intent(in) :: problem
-      type(solution_state), intent(out) :: solnp1
+      type(solution_state_ptr), intent(out) :: solnp1
       ! TODO create subroutine to calculate A and B from U and Y
       !  [ ] Calculate them based on soln and solnp1
       !  [ ] Then calculate A_naf and B_naf from An, Anp1, Bn, and Bnp1
@@ -83,7 +83,6 @@ module time_integrator
       real*8, dimension(6,6) :: Bi_naf, Ki, Ty12_naf, dAi_nafdUi_naf
       real*8, dimension(3,3) :: omega_tilde, Imat
       real*8 :: time_factor
-      real*8, dimension(3,3) :: F_factor, M_factor
       integer :: i, j, k
 
       time_factor = solver%alpha_m/(solver%gamma*solver%delta_t*solver%alpha_f)
@@ -92,7 +91,7 @@ module time_integrator
       Ui_naf = soln%U + solver%alpha_f*(solnp1%U - soln%U)
       Yi_naf = soln%Y + solver%alpha_f*(solnp1%Y - soln%Y)
 
-      do i=1,solver%nsteps
+      do i=1,solver%niters
         call calcA(Yi_naf, Ui_naf, problem, Ai_naf, dAi_nafdUi_naf)
         Bi_naf = 0
         Imat = 0
@@ -103,7 +102,7 @@ module time_integrator
         Bi_naf(4:6, 4:6) = transpose(Imat).matmul.omega_tilde.matmul.Imat
 
         Gi = Udoti_nam - Ai_naf + (Bi_naf.matmul.Ui_naf)
-        print *, 'Max Residual', maxval(abs(Gi))
+        ! print *, 'Max Residual', maxval(abs(Gi))
 
         if (maxval(abs(Gi)) < solver%tolerance) then
           solnp1%U = soln%U + (Ui_naf - soln%U)/solver%alpha_f
@@ -113,26 +112,30 @@ module time_integrator
         end if
 
         ! Create tangent matrix
-        Ki = Bi_naf
+        Ki = Bi_naf - dAi_nafdUi_naf
         forall(j=1:6) Ki(j,j) = Ki(j,j) + time_factor
 
 
         ! invert block diagonal tangent matrix
-        Ki(1:3,1:3) = matinv3(Ki(1:3,1:3))
-        Ki(4:6,4:6) = matinv3(Ki(4:6,4:6))
+        invertKi: associate(Kitemp => Imat)
+          Kitemp = Ki(1:3,1:3)
+          Ki(1:3,1:3) = matinv3(Kitemp)
+          Kitemp = Ki(4:6,4:6)
+          Ki(4:6,4:6) = matinv3(Kitemp)
+        end associate invertKi
 
         Ui_naf = Ui_naf - (Ki.matmul.Gi)
         Udoti_nam = (1 - solver%alpha_m/solver%gamma)*soln%Udot + time_factor*(Ui_naf - soln%U)
 
         Ty12_naf = 0d0
-        Ty12_naf(1:3,1:3) = T_a12(soln%Y(1:3))
-        Ty12_naf(4:6,4:6) = transpose(T_r12(soln%Y(4:6)))
-        Yi_naf = soln%Y - (Ty12_naf.matmul.Ui_naf) * (solver%delta_t*(solver%alpha_f - 1))
+        Ty12_naf(1:3,1:3) = T_a12(Yi_naf(1:3))
+        Ty12_naf(4:6,4:6) = transpose(T_r12(Yi_naf(4:6)))
+        Yi_naf = soln%Y - (Ty12_naf.matmul.Ui_naf)*(solver%delta_t*(solver%alpha_f - 1))
         ! print *, solnp1%Y(1:3)
 
       end do
 
-      print *, solnp1%Y(1:3)
+      ! print *, solnp1%Y(1:3)
     end subroutine
 
 

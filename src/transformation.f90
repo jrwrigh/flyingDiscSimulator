@@ -54,7 +54,7 @@ module transformation
     pure function T_a12_ArrayAngles(angles) result(T_a)
       real*8 :: T_a(3,3)
       real*8, intent(in) :: angles(3)
-      real*8 :: phi, theta, psi
+      ! real*8 :: phi, theta, psi
       real*8 :: cosphi, costheta, cospsi, &
                 sinphi, sintheta, sinpsi
       cosphi = cos(angles(1))
