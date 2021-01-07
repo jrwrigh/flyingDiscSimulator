@@ -4,7 +4,8 @@ use transformation
 use types
 use aero
 use time_integrator
-use math, only: pi
+! use math, only: pi
+use math
 implicit none
 
 ! type(disc_status) :: disc
@@ -15,13 +16,27 @@ integer, parameter :: nsteps=1e4
 ! type(solution_state) :: solution(nsteps)
 real*8, allocatable, target :: solution(:,:)
 type(solver_settings) :: solver
-real*8, dimension(6) :: A
+real*8, dimension(3) :: A, C
+real*8, dimension(3,3) :: B
 real*8 :: Imat(2,2), vec(2)
 integer :: k, j, outu
 
 vec = [ 1, 2 ]
 Imat(1,:) = [2, 3]
 Imat(2,:) = [4, 5]
+
+B = 0d0
+B(1,:) = [ 0.99999999969926223d0, 0d0, 2.452499999262441d-05]
+B(1,:) = [ 0, 1, 0] 
+B(1,:) = [ -2.452499999262441d-05, 0d0, 0.99999999969926223d0]
+
+A = 0d0
+
+C = B.matmul.A
+print *, C
+
+
+
 
 ! print*, Imat*vec
 

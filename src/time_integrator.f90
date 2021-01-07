@@ -68,6 +68,7 @@ module time_integrator
       use types, only: solver_settings, solution_state_ptr, problemData
       use transformation
       use math
+      use matinv66
       type(solution_state_ptr), intent(inout) :: soln
       type(solver_settings), intent(in) :: solver
       type(problemData), intent(in) :: problem
@@ -81,11 +82,13 @@ module time_integrator
 
       real*8, dimension(6) :: Udoti_nam, Ui_naf, Yi_naf, Gi, Ai_naf
       real*8, dimension(6,6) :: Bi_naf, Ki, Ty12_naf, dAi_nafdUi_naf
-      real*8, dimension(3,3) :: omega_tilde, Imat
+      real*8, dimension(3,3) :: omega_tilde, Imat, Imat_inv
       real*8 :: time_factor
       integer :: i, j, k
+      logical :: bool
 
       time_factor = solver%alpha_m/(solver%gamma*solver%delta_t*solver%alpha_f)
+      Ui_naf = 0; Udoti_nam = 0; Yi_naf = 0;
 
       Udoti_nam = soln%Udot + solver%alpha_m*(solnp1%Udot - soln%Udot)
       Ui_naf = soln%U + solver%alpha_f*(solnp1%U - soln%U)
@@ -94,20 +97,21 @@ module time_integrator
       do i=1,solver%niters
         call calcA(Yi_naf, Ui_naf, problem, Ai_naf, dAi_nafdUi_naf)
         Bi_naf = 0
-        Imat = 0
+        Imat = 0; Imat_inv = 0;
         forall(j=1:3) Imat(j,j) = problem%disc%I(j)
+        forall(j=1:3) Imat_inv(j,j) = 1/problem%disc%I(j)
         call skewSymmetric(Ui_naf(4:6), omega_tilde)
 
         Bi_naf(1:3, 1:3) = omega_tilde
-        Bi_naf(4:6, 4:6) = transpose(Imat).matmul.omega_tilde.matmul.Imat
+        Bi_naf(4:6, 4:6) = Imat_inv.matmul.omega_tilde.matmul.Imat
 
         Gi = Udoti_nam - Ai_naf + (Bi_naf.matmul.Ui_naf)
         ! print *, 'Max Residual', maxval(abs(Gi))
 
-        if (maxval(abs(Gi)) < solver%tolerance) then
-          solnp1%U = soln%U + (Ui_naf - soln%U)/solver%alpha_f
-          solnp1%Udot = soln%Udot + (Udoti_nam - soln%Udot)/solver%alpha_m
-          solnp1%Y = soln%Y + (Yi_naf - soln%Y)/solver%alpha_f
+        if (maxval(abs(Gi)) < solver%tolerance) then !TODO add "or if last iteration"
+          ! solnp1%U = soln%U + (Ui_naf - soln%U)/solver%alpha_f
+          ! solnp1%Udot = soln%Udot + (Udoti_nam - soln%Udot)/solver%alpha_m
+          ! solnp1%Y = soln%Y + (Yi_naf - soln%Y)/solver%alpha_f
           exit
         end if
 
@@ -117,23 +121,28 @@ module time_integrator
 
 
         ! invert block diagonal tangent matrix
-        invertKi: associate(Kitemp => Imat)
-          Kitemp = Ki(1:3,1:3)
-          Ki(1:3,1:3) = matinv3(Kitemp)
-          Kitemp = Ki(4:6,4:6)
-          Ki(4:6,4:6) = matinv3(Kitemp)
+        invertKi: associate(Ki_inv => Bi_naf)
+          call M66INV(Ki, Ki_inv, bool)
+
+          if (.not.bool) then
+            print *, 'Tangent Matrix not invertable'
+          end if
+
+          Ui_naf = Ui_naf - (Ki_inv.matmul.Gi)
+          Udoti_nam = (1 - solver%alpha_m/solver%gamma)*soln%Udot + time_factor*(Ui_naf - soln%U)
         end associate invertKi
 
-        Ui_naf = Ui_naf - (Ki.matmul.Gi)
-        Udoti_nam = (1 - solver%alpha_m/solver%gamma)*soln%Udot + time_factor*(Ui_naf - soln%U)
-
         Ty12_naf = 0d0
-        Ty12_naf(1:3,1:3) = T_a12(Yi_naf(1:3))
+        Ty12_naf(1:3,1:3) = T_a12(Yi_naf(4:6))
         Ty12_naf(4:6,4:6) = transpose(T_r12(Yi_naf(4:6)))
         Yi_naf = soln%Y - (Ty12_naf.matmul.Ui_naf)*(solver%delta_t*(solver%alpha_f - 1))
         ! print *, solnp1%Y(1:3)
 
       end do
+
+      solnp1%U = soln%U + (Ui_naf - soln%U)/solver%alpha_f
+      solnp1%Udot = soln%Udot + (Udoti_nam - soln%Udot)/solver%alpha_m
+      solnp1%Y = soln%Y + (Yi_naf - soln%Y)/solver%alpha_f
 
       ! print *, solnp1%Y(1:3)
     end subroutine

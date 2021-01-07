@@ -83,7 +83,7 @@ module aero
       call calcAeroMomentForce(Cf, Cm, F4, M4, problem, U)
 
       Ta42 = transpose(Ta23).matmul.transpose(Ta34)
-      F2 = Ta42.matmul.F4 + (transpose(Ta12).matmul.problem%env%gravity)*problem%disc%m
+      F2 = (Ta42.matmul.F4) + (transpose(Ta12).matmul.problem%env%gravity)*problem%disc%m
       M2 = Ta42.matmul.M4
 
       Iinv = (problem%disc%I**(-1))
@@ -114,8 +114,8 @@ module aero
         !!!!!!!!!!
         !DEBUGGGG
         !!!!!!!!!!
-        dAdU = 0
-        A = (/-500, 0, 500, 0, 0, 0/)
+        ! dAdU = 0
+        ! A = (/-500, 0, 500, 0, 0, 0/)
       end associate
 
     end subroutine
