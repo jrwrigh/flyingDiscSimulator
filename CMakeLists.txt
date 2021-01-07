@@ -17,8 +17,12 @@ set(CMAKE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
 include_directories(${CMAKE_Fortran_MODULE_DIRECTORY})
 
+add_subdirectory(extern)
+
 file(GLOB sources  ${CMAKE_SOURCE_DIR}/*.f90 ${CMAKE_SOURCE_DIR}/*.h)
 add_executable(flyingDiscSimulator ${sources})
+
+target_link_libraries(flyingDiscSimulator matinv66)
 
 # add_custom_command(TARGET flyingDiscSimulator
 #                    PRE_BUILD
