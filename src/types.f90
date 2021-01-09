@@ -32,6 +32,7 @@ module types
     real*8 :: m   !<Disc mass
     real*8 :: A !< Disc plan-view area
     real*8 :: D !< Disc diameter
+    real*8 :: Cm_damping(3) !<Moment damping coefficients
   end type disc_props
 
   type, public :: environment

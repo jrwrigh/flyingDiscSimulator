@@ -63,7 +63,7 @@ module time_integrator
       ! solnp1%Y = soln%Y + soln%U*solver%delta_t + 0.5d0*soln%Udot*solver%delta_t**2
     end subroutine
 
-    subroutine iterate(soln, solnp1, solver, problem)
+    subroutine iterate(soln, solnp1, solver, problem, residual)
       use aero
       use types, only: solver_settings, solution_state_ptr, problemData
       use transformation
@@ -73,6 +73,7 @@ module time_integrator
       type(solver_settings), intent(in) :: solver
       type(problemData), intent(in) :: problem
       type(solution_state_ptr), intent(out) :: solnp1
+      real*8, intent(out) :: residual
       ! TODO create subroutine to calculate A and B from U and Y
       !  [ ] Calculate them based on soln and solnp1
       !  [ ] Then calculate A_naf and B_naf from An, Anp1, Bn, and Bnp1
@@ -106,9 +107,10 @@ module time_integrator
         Bi_naf(4:6, 4:6) = Imat_inv.matmul.omega_tilde.matmul.Imat
 
         Gi = Udoti_nam - Ai_naf + (Bi_naf.matmul.Ui_naf)
+        residual = maxval(abs(Gi))
         ! print *, 'Max Residual', maxval(abs(Gi))
 
-        if (maxval(abs(Gi)) < solver%tolerance) then !TODO add "or if last iteration"
+        if (residual < solver%tolerance) then !TODO add "or if last iteration"
           ! solnp1%U = soln%U + (Ui_naf - soln%U)/solver%alpha_f
           ! solnp1%Udot = soln%Udot + (Udoti_nam - soln%Udot)/solver%alpha_m
           ! solnp1%Y = soln%Y + (Yi_naf - soln%Y)/solver%alpha_f

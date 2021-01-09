@@ -15,29 +15,9 @@ type(solution_state_ptr) :: soln_ptr, solnp1_ptr, solnm1_ptr
 integer, parameter :: nsteps=1e4
 ! type(solution_state) :: solution(nsteps)
 real*8, allocatable, target :: solution(:,:)
+real*8, allocatable, target :: residual(:)
 type(solver_settings) :: solver
-real*8, dimension(3) :: A, C
-real*8, dimension(3,3) :: B
-real*8 :: Imat(2,2), vec(2)
 integer :: k, j, outu
-
-vec = [ 1, 2 ]
-Imat(1,:) = [2, 3]
-Imat(2,:) = [4, 5]
-
-B = 0d0
-B(1,:) = [ 0.99999999969926223d0, 0d0, 2.452499999262441d-05]
-B(1,:) = [ 0, 1, 0] 
-B(1,:) = [ -2.452499999262441d-05, 0d0, 0.99999999969926223d0]
-
-A = 0d0
-
-C = B.matmul.A
-print *, C
-
-
-
-
 ! print*, Imat*vec
 
 allocate(solution(18,nsteps))
@@ -45,6 +25,7 @@ solution = 0
 
 ! Initializing problem data
 problem%disc%I = (/ 1.2d-3, 1.2d-3, 2.4d-3 /)
+problem%disc%Cm_damping = (/ -1.3d0, -1.4d0, -1.2d-1/)
 problem%disc%m = 0.175d0
 problem%disc%D = 0.275d0
 problem%disc%A = pi*(problem%disc%D*0.5)**2
@@ -58,7 +39,8 @@ problem%env%viscosity = 1.5d-5
 
 call soln_ptr%setptr(solution, 1)
 soln_ptr%Y(:) = (/ 0d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
-soln_ptr%U(:) = (/ 20d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
+soln_ptr%U(:) = (/ 20d0, 0d0, 0d0, 0d0, 0d0, 52.85d0  /)
+! soln_ptr%U(:) = (/ 20d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
 soln_ptr%Udot(:) = (/ 0d0, 0d0, 0d0, 0d0, 0d0, 0d0  /)
 soln_ptr%Udot(1:3) = soln_ptr%Udot(1:3) + problem%env%gravity
 
@@ -66,6 +48,9 @@ solver%rho_infty = 1d0
 solver%niters = 5
 solver%delta_t = 1d-4
 solver%tolerance = 1d-16
+
+allocate(residual(nsteps))
+residual = 0
 
 call iterations()
 contains
@@ -84,19 +69,24 @@ contains
     call soln_ptr%setptr(solution, 1); call solnp1_ptr%setptr(solution, 2)
 
     call predictor_UdotConstant(soln_ptr, solnp1_ptr, solver)
-    call iterate(soln_ptr, solnp1_ptr, solver, problem)
+    call iterate(soln_ptr, solnp1_ptr, solver, problem, residual(1))
     do k=2,nsteps-1
       ! print *, 'STEP: ', k
       call soln_ptr%setptr(solution, k)
       call solnm1_ptr%setptr(solution, k-1); call solnp1_ptr%setptr(solution, k+1)
 
       call predictor_deltaUConstant(soln_ptr, solnm1_ptr, solnp1_ptr, solver)
-      call iterate(soln_ptr, solnp1_ptr, solver, problem)
+      call iterate(soln_ptr, solnp1_ptr, solver, problem, residual(k))
     end do
 
     outu = 0
     open (unit=outu,form="unformatted",file="test.fbin",action="write")
     write(outu) solution
+    close(outu)
+
+    outu = 1
+    open (unit=outu,form="unformatted",file="residual.fbin",action="write")
+    write(outu) residual
     close(outu)
   end subroutine
 
