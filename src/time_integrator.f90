@@ -36,7 +36,7 @@ module time_integrator
 
       Ty12 = 0d0
       Ty12(1:3,1:3) = T_a12(soln%Y(4:6))
-      Ty12(4:6,4:6) = transpose(T_r12(soln%Y(4:6)))
+      Ty12(4:6,4:6) = T_r21(soln%Y(4:6))
       solnp1%Y = soln%Y + (Ty12.matmul.soln%U)*solver%delta_t
       ! Old implementation without correct axis transformations
       ! solnp1%Y = soln%Y + soln%U*solver%delta_t + 0.5d0*soln%Udot*solver%delta_t**2 &
@@ -57,7 +57,7 @@ module time_integrator
 
       Ty12 = 0d0
       Ty12(1:3,1:3) = T_a12(soln%Y(4:6))
-      Ty12(4:6,4:6) = transpose(T_r12(soln%Y(4:6)))
+      Ty12(4:6,4:6) = T_r21(soln%Y(4:6))
       solnp1%Y = soln%Y + (Ty12.matmul.soln%U)*solver%delta_t
       ! Old implementation without correct axis transformation
       ! solnp1%Y = soln%Y + soln%U*solver%delta_t + 0.5d0*soln%Udot*solver%delta_t**2
@@ -136,7 +136,7 @@ module time_integrator
 
         Ty12_naf = 0d0
         Ty12_naf(1:3,1:3) = T_a12(Yi_naf(4:6))
-        Ty12_naf(4:6,4:6) = transpose(T_r12(Yi_naf(4:6)))
+        Ty12_naf(4:6,4:6) = T_r21(Yi_naf(4:6))
         Yi_naf = soln%Y - (Ty12_naf.matmul.Ui_naf)*(solver%delta_t*(solver%alpha_f - 1))
         ! print *, solnp1%Y(1:3)
 
