@@ -84,5 +84,4 @@ module math
       B(3,3) = +detinv * (A(1,1)*A(2,2) - A(1,2)*A(2,1))
     end function
 
-
 end module math

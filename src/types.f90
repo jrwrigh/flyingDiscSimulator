@@ -17,7 +17,6 @@ module types
       procedure, private :: associatePointersArrays_solution_state_ptr
       generic :: setptr => associatePointersArrays_solution_state_ptr, &
                            associatePointers_solution_state_ptr
-      ! procedure :: setptr => associatePointers
   end type solution_state_ptr
 
   type, public :: disc_status

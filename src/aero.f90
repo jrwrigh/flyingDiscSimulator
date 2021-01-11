@@ -19,11 +19,8 @@ module aero
       real*8, intent(in) :: alpha3 !< Angle of Attack
       real*8, intent(in) :: apparent_velocity !< Linear velocity Magnitude
       type(problemData), intent(in) :: problem
-      ! real*8, intent(in), dimension(3) :: Cm_damping !< Vector of moment damping coefficients
-      ! real*8, intent(in) :: D !< Disc Diameter
       real*8, intent(out), dimension(3) :: Cf, Cm !< Vector of force and moment coefficients
       real*8 :: damping_factor
-      ! real*8, dimension(3,3) :: Ta32
 
       Cf = 0d0
       Cm = 0d0
@@ -38,21 +35,6 @@ module aero
       ! Cm(2) = 1d-3 ! pitching moment
       Cm(3) = problem%disc%Cm_damping(3)*omega3(3)*damping_factor ! yawing moment (ie. resisting spin)
     end subroutine getAeroCoeffs
-
-    ! pure subroutine calcAeroMomentForce(Cf, Cm, F4, M4, problem, U)
-    !   use types
-    !   real*8, intent(in), dimension(3) :: Cf, Cm !< Vector of force and moment coefficients
-    !   type(problemData), intent(in) :: problem
-    !   real*8, intent(in), dimension(6) :: U
-    !   real*8, intent(out), dimension(3) :: F4, M4 !< Force and moment vectors
-    !   real*8 :: q
-
-      ! q = 0.5*problem%env%density*norm2(U(1:3) - problem%env%wind)**2! dynamic pressure
-
-      ! F4(:) = q*problem%disc%A*Cf(:)
-      ! M4(:) = q*problem%disc%A*problem%disc%D*Cm(:)
-
-    ! end subroutine calcAeroMomentForce
 
     pure subroutine calcA_YU(Y, U, problem, A, dAdU)
       use types
@@ -78,21 +60,16 @@ module aero
       Ta12 = T_a12(Y(4:6))
       wind2 = transpose(Ta12).matmul.problem%env%wind
       beta2 = ATAN2( (U(2) - wind2(2)), (U(1) - wind2(1)) )
-      ! beta2 = ATAN( (vel2(2) - wind2(2)) / (vel2(1) - wind2(1)) )
 
       Ta32 = transpose(T_a23(beta2))
       wind3 = Ta32.matmul.wind2
       vel3 = Ta32.matmul.U(1:3)
-      ! wind3 = transpose(Ta23).matmul.wind2
-      ! vel3 = transpose(Ta23).matmul.U(1:3)
       alpha3 = ATAN2( (vel3(3) - wind3(3)), (vel3(1) - wind3(1)) )
-      ! alpha3 = ATAN( (vel3(2) - wind3(2)) / (vel3(1) - wind3(1)) )
 
       Ta34 = T_a34(alpha3)
       Ta42 = Ta32.matmul.transpose(Ta34)
 
       associate(omega3 => wind2, apparent_velocity => beta2)
-        ! Ta32 = transpose(Ta23)
         omega3 = Ta32.matmul.U(4:6)
         apparent_velocity = norm2(U(1:3) - problem%env%wind)
 
@@ -105,7 +82,6 @@ module aero
           M4(:) = q*problem%disc%A*problem%disc%D*Cm(:)
         end associate dynpress
 
-        ! call calcAeroMomentForce(Cf, Cm, F4, M4, problem, U)
 
         F2 = (Ta42.matmul.F4) + (transpose(Ta12).matmul.problem%env%gravity)*problem%disc%m
         M2 = Ta42.matmul.M4
@@ -135,12 +111,6 @@ module aero
 
         dAdU(1:3,:) = F_factor.matmul.Fkj
         dAdU(4:6,:) = M_factor.matmul.Mkj
-
-        !!!!!!!!!!
-        !DEBUGGGG
-        !!!!!!!!!!
-        ! dAdU = 0
-        ! A = (/-500, 0, 500, 0, 0, 0/)
       end associate
 
     end subroutine
@@ -169,10 +139,6 @@ module aero
       real*8, dimension(3,3), intent(in) :: Ta32
       real*8, intent (out) :: J_Cm(3,6)
       integer :: i
-
-      ! Ta32 = transpose(Ta23)
-      ! velocity = norm2(U(1:3))
-      ! omega3 = Ta32.matmul.U(4:6)
 
       forall(i=1:3) J_Cm(i,1:3) = U(1:3)*Cm_damping(i)*omega3(i)*problem%disc%D/apparent_velocity**3
       forall(i=1:3) J_Cm(i,4:6) = 0.5d0*Ta32(i,:)*Cm_damping(i)*problem%disc%D*apparent_velocity

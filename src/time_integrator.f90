@@ -1,14 +1,5 @@
 module time_integrator
-  ! use types, only: solver_settings, solution_state
   implicit none
-
-  ! type :: solution_state
-  !   real*8, dimension(6) :: Y !< axis1 positions and attitude
-  !   real*8, dimension(6) :: U !< axis2 linear and angular velocity
-  !   real*8, dimension(6) :: Udot !< axis2 linear and angular accelerations
-  ! end type solution_state
-
-  ! type(solver_settings) :: solver
 
   contains
 
@@ -111,9 +102,6 @@ module time_integrator
         ! print *, 'Max Residual', maxval(abs(Gi))
 
         if (residual < solver%tolerance) then !TODO add "or if last iteration"
-          ! solnp1%U = soln%U + (Ui_naf - soln%U)/solver%alpha_f
-          ! solnp1%Udot = soln%Udot + (Udoti_nam - soln%Udot)/solver%alpha_m
-          ! solnp1%Y = soln%Y + (Yi_naf - soln%Y)/solver%alpha_f
           exit
         end if
 
